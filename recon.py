@@ -27,6 +27,8 @@ class Net(torch.nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 1)
 
+        
+
     def forward(self, x):
         # Max pooling over a (2, 2) window
         x = F.max_pool2d(F.relu(self.conv1(x)), (2, 2))
