@@ -18,91 +18,9 @@ import pandas as pd
 from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
-batch_size = 60
-wl = 64
+batch_size = 15
+wl = 32
 w, l, n = wl, wl, 30
-
-# def to_torch_sparse_tensor(M):
-#     M = M.tocoo().astype(np.float32)
-#     indices = torch.from_numpy(np.vstack((M.row, M.col))).long()
-#     values = torch.from_numpy(M.data)
-#     shape = torch.Size(M.shape)
-#     T = torch.sparse.FloatTensor(indices, values, shape)
-#     return T
-
-
-#
-# class Parameter(torch.Tensor):
-
-#     def __new__(cls, data=None, requires_grad=True):
-#         if data is None:
-#             data = torch.Tensor()
-#         return torch.Tensor._make_subclass(cls, data, requires_grad)
-#
-#     def __deepcopy__(self, memo):
-#         if id(self) in memo:
-#             return memo[id(self)]
-#         else:
-#             result = type(self)(self.data.clone(), self.requires_grad)
-#             memo[id(self)] = result
-#             return result
-#
-#     def __repr__(self):
-#         return 'Parameter containing:\n' + super(Parameter, self).__repr__()
-#
-#     def __reduce_ex__(self, proto):
-#         # See Note [Don't serialize hooks]
-#         return (
-#             torch._utils._rebuild_parameter,
-#             (self.data, self.requires_grad, OrderedDict())
-#         )
-
-# def sparse_linear(input, weight, bias=None):
-#     # type: (Tensor, Tensor, Optional[Tensor]) -> Tensor
-#     # TODO change it into the sparse
-#     # weight = torch.sparse.FloatTensor(weight._indices(), weight._values(), torch.Size([25600,25600])).to_dense()
-#     if input.dim() == 2 and bias is not None:
-#         # fused op is marginally faster
-#         ret = torch.addmm(torch.jit._unwrap_optional(bias), input, weight.t())
-#         # ret = torch.sparse.addmm(torch.jit._unwrap_optional(bias), input, weight.t())
-#     else:
-#         output = input.matmul(weight.t())
-#         if bias is not None:
-#             output += torch.jit._unwrap_optional(bias)
-#         ret = output
-#     return ret
-#
-#
-# class Linear(torch.nn.Module):
-#     # TODO change it into the sparse
-#     __constants__ = ['bias']
-#
-#     def __init__(self, in_features, out_features, bias=True):
-#         super(Linear, self).__init__()
-#         self.in_features = in_features
-#         self.out_features = out_features
-#         self.weight = Parameter(torch.Tensor(out_features, in_features))
-#         if bias:
-#             self.bias = Parameter(torch.Tensor(out_features))
-#         else:
-#             self.register_parameter('bias', None)
-#         self.reset_parameters()
-#
-#     def reset_parameters(self):
-#         init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-#         if self.bias is not None:
-#             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
-#             bound = 1 / math.sqrt(fan_in)
-#             init.uniform_(self.bias, -bound, bound)
-#
-#     @weak_script_method
-#     def forward(self, input):
-#         return sparse_linear(input, self.weight, self.bias)
-#
-#     def extra_repr(self):
-#         return 'in_features={}, out_features={}, bias={}'.format(
-#             self.in_features, self.out_features, self.bias is not None
-#         )
 
 class Net(torch.nn.Module):
 
@@ -112,9 +30,10 @@ class Net(torch.nn.Module):
         self.shape2 = shape2
         self.fc = torch.nn.Linear(shape1[0]*shape1[1], shape2[0]*shape2[1], bias=False)
 
+
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        x = self.fc(x)
+        x = torch.nn.functional.relu(self.fc(x))
         return x.reshape(size, w, l)
 
 
@@ -124,7 +43,7 @@ class RepairNet():
     def __init__(self, shape1, shape2):
         self.network = Net(shape1, shape2)
         self.network.cuda()
-        self.loss_func = torch.nn.L1Loss()
+        self.loss_func = torch.nn.L1Loss(reduction='sum')
         self.mssim_loss = MSSSIM(window_size=11, size_average=True)
         self.loss_func_MSE = torch.nn.MSELoss()
         self.model_num = 0
@@ -200,15 +119,15 @@ if __name__ == "__main__":
     # n = 30
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr= 5e-3, betas=(0.9, 0.999))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3 , gamma=0.985)
+    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')
     dataloader = DataLoader(transformed_dataset, batch_size=batch_size,
                             shuffle=True)
     TrainNet.network.train()
-    m = torch.nn.Threshold(0.5, float('inf'))
+
 
     for epoch in range(5000):
         if epoch%5 == 0:
@@ -223,11 +142,24 @@ if __name__ == "__main__":
             print('loss:', loss.item())
 
         with torch.no_grad():
-
-            # TODO change the sparse to make it visiable for one pixel
             for name, param in TrainNet.network.named_parameters():
                 if 'weight' in name:
                     weight = param.data
+            if epoch % 50 == 49:
+                print('Revise the zeros in weight')
+                # TODO change the sparse to make it visible for one pixel
+                weight_min = weight.min()
+                weight_dis = weight.max() - weight_min
+                m = torch.nn.Threshold(weight_dis*0.1, 0)
+                weight = m(weight-weight_min) + weight_min
+                # optimizer.param_groups[0]['params'][0].data = weight
+            for name, param in TrainNet.network.named_parameters():
+                if 'weight' in name:
+                    param.data = weight
+                    # print(len(set(weight2 - weight)))
+
+
+
 
             testimage = imread(data_dir + "/phantom.png", as_gray=True)
             testimage = rescale(testimage, scale=w/400.0, mode='reflect', multichannel=False)
@@ -251,15 +183,16 @@ if __name__ == "__main__":
             w_show2 = weight[n+100].reshape(1, w, l).detach().cpu().numpy()
             w_show3 = weight[n+200].reshape(1, w, l).detach().cpu().numpy()
 
+            w_show1 = w_show1 - w_show1.min()
+            w_show2 = w_show2 - w_show2.min()
+            w_show3 = w_show3 - w_show3.min()
+
 
             images = np.stack(
                 [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255, out_show_v / out_show_v.max() * 255,
                  sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
                  w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
-            # images = np.stack(
-            #     [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255,
-            #      out_show_v / out_show_v.max() * 255,
-            #      w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
+
             if not win:
                 win = vis.images(images, padding=5, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
             else:

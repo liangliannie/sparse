@@ -16,7 +16,7 @@ import torch
 import pickle
 from torch_sparse import coalesce
 
-wl = 16
+wl = 32
 w, l = wl,wl
 
 
@@ -113,13 +113,14 @@ vis = visdom.Visdom()
 win = None
 show = True
 for t in range(500):
+
     for i_batch, sample_batched in enumerate(dataloader):
         sino, img = (sample_batched['sino']), (sample_batched['img'])
         sino, img = sino.type(torch.float32).cuda(), img.type(torch.float32).cuda()
         x, y = sino, img
 
         # out = model(x)
-        out = torch.sparse.mm(weight, x.t()).t()
+        out = torch.nn.functional.relu(torch.sparse.mm(weight, x.t()).t())
         loss = criterion(out, y)
         print(t, ': ', 'weight number: ', weight._nnz(), 'loss:', loss.item())
         # print(weight)
@@ -134,7 +135,7 @@ for t in range(500):
             # print(weight.is_coalesced())
             # weight = filter(torch.sparse.FloatTensor(weight._indices(), weight._values(), torch.Size(weight.shape)).to_dense()).to_sparse().requires_grad_(True)
 
-        learning_rate *= 0.985
+
             # weight.grad.zero_()
 
         if show:
@@ -145,7 +146,9 @@ for t in range(500):
             w_show1 = ww[0].reshape(1, w, l).detach().cpu().numpy()
             w_show2 = ww[1].reshape(1, w, l).detach().cpu().numpy()
             w_show3 = ww[2].reshape(1, w, l).detach().cpu().numpy()
-
+            w_show1 = w_show1 - w_show1.min()
+            w_show2 = w_show2 - w_show2.min()
+            w_show3 = w_show3 - w_show3.min()
             images = np.stack(
                 [sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
                  w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
@@ -153,3 +156,5 @@ for t in range(500):
                 win = vis.images(images, padding=5, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
             else:
                 vis.images(images, padding=5, win=win, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
+
+    learning_rate *= 0.985
