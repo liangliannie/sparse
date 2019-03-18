@@ -7,6 +7,7 @@ from skimage.io import imread
 from skimage import data_dir
 from skimage.transform import radon, rescale
 import visdom
+import sparse_adam
 from torch.nn.parameter import Parameter
 from torch.nn import init
 import math
@@ -19,7 +20,7 @@ from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
 batch_size = 15
-wl = 16
+wl = 32
 w, l, n = wl, wl, 30
 
 class Net(torch.nn.Module):
@@ -28,15 +29,12 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.shape1 = shape1
         self.shape2 = shape2
-        # self.fc = torch.nn.Linear(shape1[0]*shape1[1], shape1[0]*shape1[1], bias=False)
         self.weight = torch.nn.Parameter(torch.randn(shape1[0]*shape1[1],  shape1[0]*shape1[1]).to_sparse().requires_grad_(True))
 
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        # x = torch.nn.functional.relu(self.fc(x))
-        # print(x.shape, self.weight.shape)
-        x = torch.sigmoid(torch.sparse.mm(self.weight, x.t()))
-        # x = torch.sigmoid(self.fc(x))
+        x = torch.sparse.mm(self.weight, x.t())
+        # x = torch.sigmoid(torch.sparse.mm(self.weight, x.t()))
         return x.reshape(size, w, l)
 
 
@@ -55,10 +53,7 @@ class RepairNet():
         self.optimizer = optimizer
 
     def train_batch(self, input_img, target_img, size):
-        # print(input_img, target_img)
-
         output = self.network.forward(input_img, size)
-        # self.loss_func(output, target_img) +
         loss = self.loss_func(output, target_img) #- self.mssim_loss.forward(output.reshape(batch_size,1,w,l), target_img.reshape(batch_size,1,w,l))
         self.optimizer.zero_grad()
         loss.backward()
@@ -88,8 +83,6 @@ class ReconDataset(Dataset):
         self.dic = self.unpickle(self.root)
         self.count = 0
         self.img = self.dic['data']
-        # print(self.img.shape)
-
 
     def __len__(self):
         return 5*batch_size
@@ -103,13 +96,12 @@ class ReconDataset(Dataset):
             reconimage = rescale(reconimage, scale=w/400.0, mode='reflect', multichannel=False)
         else:
             reconimage = self.img[self.count].reshape(3, 64, 64)
-            reconimage = reconimage[0]
+            reconimage = 0.2989*reconimage[0] + 0.5870*reconimage[1] + 0.1140*reconimage[2]
             reconimage = rescale(reconimage, scale=w/64.0, mode='reflect', multichannel=False)
 
         self.count += 1
         theta = np.linspace(0., 180., max(reconimage.shape), endpoint=False)
         sinogram = radon(reconimage, theta=theta, circle=True)
-        # sinogram, reconimage = np.expand_dims(sinogram, axis=0), np.expand_dims(reconimage, axis=0)
 
         sinogram = sinogram /sinogram.max()
         reconimage = reconimage /reconimage.max()
@@ -121,11 +113,9 @@ if __name__ == "__main__":
     vis = visdom.Visdom()
     win = None
 
-    # n = 30
-
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = torch.optim.SparseAdam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.985)
+    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=1e-4, betas=(0.9, 0.999))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')
@@ -134,11 +124,13 @@ if __name__ == "__main__":
     TrainNet.network.train()
 
 
-    for epoch in range(5000):
-        if epoch%5 == 0:
+    for epoch in range(500000):
+
+        if epoch % 5 == 0:
             scheduler.step()
             for param_group in optimizer.param_groups:
                 print("Current learning rate: {}\n".format(param_group['lr']))
+
         print("Starting epoch: " + str(epoch) + '\n')
         for i_batch, sample_batched in enumerate(dataloader):
             sino, img = (sample_batched['sino']), (sample_batched['img'])
@@ -151,21 +143,18 @@ if __name__ == "__main__":
             for name, param in TrainNet.network.named_parameters():
                 if 'weight' in name:
                     weight = param.data
-            if epoch % 50 == 51:
-                print('Revise the zeros in weight')
-                # TODO change the sparse to make it visible for one pixel
-                weight_min = weight.min()
-                weight_dis = weight.max() - weight_min
-                m = torch.nn.Threshold(weight_dis*0.1, 0)
-                weight = m(weight-weight_min) + weight_min
-                # optimizer.param_groups[0]['params'][0].data = weight
-            for name, param in TrainNet.network.named_parameters():
-                if 'weight' in name:
-                    param.data = weight
-                    # print(len(set(weight2 - weight)))
-
-
-
+        #     if epoch % 50 == 51:
+        #         print('Revise the zeros in weight')
+        #         # TODO change the sparse to make it visible for one pixel
+        #         weight_min = weight.min()
+        #         weight_dis = weight.max() - weight_min
+        #         m = torch.nn.Threshold(weight_dis*0.1, 0)
+        #         weight = m(weight-weight_min) + weight_min
+        #         # optimizer.param_groups[0]['params'][0].data = weight
+        #     for name, param in TrainNet.network.named_parameters():
+        #         if 'weight' in name:
+        #             param.data = weight
+        #             # print(len(set(weight2 - weight)))
 
             testimage = imread(data_dir + "/phantom.png", as_gray=True)
             testimage = rescale(testimage, scale=w/400.0, mode='reflect', multichannel=False)
@@ -193,7 +182,6 @@ if __name__ == "__main__":
             w_show2 = w_show2 - w_show2.min()
             w_show3 = w_show3 - w_show3.min()
 
-
             images = np.stack(
                 [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255, out_show_v / out_show_v.max() * 255,
                  sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
@@ -203,7 +191,3 @@ if __name__ == "__main__":
                 win = vis.images(images, padding=5, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
             else:
                 vis.images(images, padding=5, win=win, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
-
-        # if epoch%50 == 0:
-        #     TrainNet.save_network()
-

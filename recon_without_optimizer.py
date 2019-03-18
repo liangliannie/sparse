@@ -185,7 +185,7 @@ class ReconDataset(Dataset):
             reconimage = rescale(reconimage, scale=w/400.0, mode='reflect', multichannel=False)
         else:
             reconimage = self.img[self.count].reshape(3, 64, 64)
-            reconimage = reconimage[0]
+            reconimage = 0.2989*reconimage[0] + 0.5870*reconimage[1]+ 0.1140*reconimage[2]
             reconimage = rescale(reconimage, scale=w/64.0, mode='reflect', multichannel=False)
 
         self.count += 1
