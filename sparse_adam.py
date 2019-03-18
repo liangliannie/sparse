@@ -1,6 +1,6 @@
 import math
 import torch
-from .optimizer import Optimizer
+from torch.optim.optimizer import Optimizer
 
 # from torch_sparse import coalesce
 
@@ -55,7 +55,7 @@ class SparseAdam(Optimizer):
                     raise RuntimeError('SparseAdam does not support dense gradients, please consider Adam instead')
 
                 state = self.state[p]
-
+                # print(self.state, state)
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
@@ -80,6 +80,8 @@ class SparseAdam(Optimizer):
 
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+
+                # print(exp_avg, exp_avg_sq)
                 beta1, beta2 = group['betas']
 
                 # Decay the first and second moment running average coefficient
@@ -94,6 +96,7 @@ class SparseAdam(Optimizer):
                 exp_avg_sq.add_(make_sparse(exp_avg_sq_update_values))
 
                 # Dense addition again is intended, avoiding another sparse_mask
+                # print(exp_avg_update_values, exp_avg_sq_update_values)
                 numer = exp_avg_update_values.add_(old_exp_avg_values)
                 exp_avg_sq_update_values.add_(old_exp_avg_sq_values)
                 denom = exp_avg_sq_update_values.sqrt_().add_(group['eps'])
@@ -105,16 +108,15 @@ class SparseAdam(Optimizer):
 
                 p.data.add_(make_sparse(-step_size * numer.div_(denom)))
                 p.data = p.data.coalesce()
+                #
+                weight = p.data
 
-                show_weight = p.data.to_dense()
-                weight_min = show_weight.min()
-                weight_dis = show_weight.max() - weight_min
-                show_weight = show_weight - weight_min
-
-                if state['step'] % 50 == 0:
+                if state['step'] % 100 == 0:
                     print('Before:', p.data._nnz())
-                    m = torch.nn.Threshold(weight_dis * 0.1, 0)
-                    p.data = (m(show_weight) + weight_min).to_sparse().to('cuda').requires_grad_(True)
+                    dense_weight = weight.to_dense()
+                    mask = torch.lt(abs(dense_weight), 0.01)
+                    dense_weight[mask] = 0
+                    p.data = dense_weight.to_sparse().to('cuda').requires_grad_(True)
                     print('After:', p.data._nnz())
 
 
