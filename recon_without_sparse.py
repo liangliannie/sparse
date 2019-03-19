@@ -19,8 +19,10 @@ import pandas as pd
 from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
+from skimage.util import random_noise
+
 batch_size = 15
-wl = 32
+wl = 16
 w, l, n = wl, wl, 30
 
 class Net(torch.nn.Module):
@@ -33,7 +35,8 @@ class Net(torch.nn.Module):
 
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        x = torch.sigmoid(self.fc(x))
+        x= self.fc(x)
+        # x = torch.sigmoid(self.fc(x))
 
         return x.reshape(size, w, l)
 
@@ -107,6 +110,9 @@ class ReconDataset(Dataset):
         theta = np.linspace(0., 180., max(reconimage.shape), endpoint=False)
         sinogram = radon(reconimage, theta=theta, circle=True)
 
+        # sinogram = random_noise(reconimage, var=0.03)
+        # print(sinogram)
+
         sinogram = sinogram /sinogram.max()
         reconimage = reconimage /reconimage.max()
         sample = {'sino': sinogram, 'img': reconimage}
@@ -120,9 +126,9 @@ if __name__ == "__main__":
     # n = 30
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=5e-4, betas=(0.9, 0.999))
+    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=5e-3, betas=(0.9, 0.999))
     # optimizer = torch.optim.SGD(TrainNet.network.parameters(), lr=0.0001, momentum=0.9)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')

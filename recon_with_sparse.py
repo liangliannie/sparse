@@ -22,7 +22,7 @@ from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
 batch_size = 15
-wl = 32
+wl = 16
 w, l, n = wl, wl, 30
 
 class Net(torch.nn.Module):
@@ -98,7 +98,7 @@ class ReconDataset(Dataset):
         if self.count >= 50000:
             self.count = 0
 
-        if self.count % 50 == 51:
+        if self.count % 1 == 2:
             reconimage = imread(data_dir + "/phantom.png", as_gray=True)
             reconimage = rescale(reconimage, scale=w/400.0, mode='reflect', multichannel=False)
         else:
@@ -122,8 +122,8 @@ if __name__ == "__main__":
 
     TrainNet = RepairNet((w, l), (w, l))
     # optimizer = adam.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
-    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-4, betas=(0.9, 0.999))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
+    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-3, betas=(0.9, 0.999))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')
@@ -182,8 +182,8 @@ if __name__ == "__main__":
             out_show = output.reshape(1, w, l).detach().cpu().numpy()[0:1]
 
             w_show1 = weight.to_dense()[n].reshape(1, w, l).detach().cpu().numpy()
-            w_show2 = weight.to_dense()[n+100].reshape(1, w, l).detach().cpu().numpy()
-            w_show3 = weight.to_dense()[n+200].reshape(1, w, l).detach().cpu().numpy()
+            w_show2 = weight.to_dense()[n+20].reshape(1, w, l).detach().cpu().numpy()
+            w_show3 = weight.to_dense()[n+10].reshape(1, w, l).detach().cpu().numpy()
 
             w_show1 = w_show1 - w_show1.min()
             w_show2 = w_show2 - w_show2.min()
