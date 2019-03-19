@@ -8,12 +8,14 @@ from skimage import data_dir
 from skimage.transform import radon, rescale
 import visdom
 import sparse_adam
+import adam
 from torch.nn.parameter import Parameter
 from torch.nn import init
 import math
 from torch._jit_internal import weak_module, weak_script_method
 import torch
 import pickle
+import torch_sparse
 from collections import OrderedDict
 import pandas as pd
 from skimage import io, transform
@@ -29,12 +31,15 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.shape1 = shape1
         self.shape2 = shape2
-        self.weight = torch.nn.Parameter(torch.randn(shape1[0]*shape1[1],  shape1[0]*shape1[1]).to_sparse().requires_grad_(True))
+        weight = init.kaiming_uniform_(torch.Tensor(wl*wl, wl*wl), a=math.sqrt(5))
+        self.weight = torch.nn.Parameter(weight.to_sparse())
+        # print(self.weight)
 
     def forward(self, x, size):
+
         x = x.reshape(size, -1)
         x = torch.sparse.mm(self.weight, x.t())
-        # x = torch.sigmoid(torch.sparse.mm(self.weight, x.t()))
+
         return x.reshape(size, w, l)
 
 
@@ -44,7 +49,7 @@ class RepairNet():
     def __init__(self, shape1, shape2):
         self.network = Net(shape1, shape2)
         self.network.cuda()
-        self.loss_func = torch.nn.L1Loss(reduction='sum')
+        self.loss_func = torch.nn.L1Loss(reduction='mean')
         self.mssim_loss = MSSSIM(window_size=11, size_average=True)
         self.loss_func_MSE = torch.nn.MSELoss()
         self.model_num = 0
@@ -55,8 +60,10 @@ class RepairNet():
     def train_batch(self, input_img, target_img, size):
         output = self.network.forward(input_img, size)
         loss = self.loss_func(output, target_img) #- self.mssim_loss.forward(output.reshape(batch_size,1,w,l), target_img.reshape(batch_size,1,w,l))
+
         self.optimizer.zero_grad()
         loss.backward()
+        # weight = self.optimizer.param_groups[0]['params']
         self.optimizer.step()
         return loss.detach(), output
 
@@ -114,8 +121,9 @@ if __name__ == "__main__":
     win = None
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=1e-4, betas=(0.9, 0.999))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
+    # optimizer = adam.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')
@@ -135,7 +143,6 @@ if __name__ == "__main__":
         for i_batch, sample_batched in enumerate(dataloader):
             sino, img = (sample_batched['sino']), (sample_batched['img'])
             sino, img = sino.type(torch.float32).cuda(), img.type(torch.float32).cuda()
-
             loss, out = TrainNet.train_batch(sino, img, batch_size)
             print('loss:', loss.item())
 

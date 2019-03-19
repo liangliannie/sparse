@@ -15,6 +15,9 @@ from torch._jit_internal import weak_module, weak_script_method
 import torch
 import pickle
 from torch_sparse import coalesce
+import torch
+import sparseconvnet as scn
+
 
 wl = 32
 w, l = wl,wl

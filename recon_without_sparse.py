@@ -20,7 +20,7 @@ from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
 batch_size = 15
-wl = 64
+wl = 32
 w, l, n = wl, wl, 30
 
 class Net(torch.nn.Module):
@@ -29,22 +29,22 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.shape1 = shape1
         self.shape2 = shape2
-        self.fc = torch.nn.Linear(shape1[0]*shape1[1], shape1[0]*shape1[1], bias=True)
+        self.fc = torch.nn.Linear(shape1[0]*shape1[1],  shape2[0]*shape2[1], bias=False)
 
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        x = torch.nn.functional.relu(self.fc(x))
+        x = self.fc(x)
+
         return x.reshape(size, w, l)
-
-
 
 class RepairNet():
 
     def __init__(self, shape1, shape2):
         self.network = Net(shape1, shape2)
         self.network.cuda()
-        self.loss_func = torch.nn.L1Loss(reduction='sum')
-        self.mssim_loss = MSSSIM(window_size=11, size_average=True)
+        self.loss_func = torch.nn.L1Loss(reduction='mean')
+        self.mssim_loss = MSSSIM(window_size=3, size_average=True)
+        self.crossengropy = torch.nn.CrossEntropyLoss()
         self.loss_func_MSE = torch.nn.MSELoss()
         self.model_num = 0
 
@@ -55,6 +55,7 @@ class RepairNet():
         # print(input_img, target_img)
 
         output = self.network.forward(input_img, size)
+        # print(output.shape)
         loss = self.loss_func(output, target_img) #- self.mssim_loss.forward(output.reshape(batch_size,1,w,l), target_img.reshape(batch_size,1,w,l))
         self.optimizer.zero_grad()
         loss.backward()
@@ -99,7 +100,7 @@ class ReconDataset(Dataset):
             reconimage = rescale(reconimage, scale=w/400.0, mode='reflect', multichannel=False)
         else:
             reconimage = self.img[self.count].reshape(3, 64, 64)
-            reconimage = 0.2989*reconimage[0] + 0.5870*reconimage[1]+ 0.1140*reconimage[2]
+            reconimage = 0.2989*reconimage[0] + 0.5870*reconimage[1] + 0.1140*reconimage[2]
             reconimage = rescale(reconimage, scale=w/64.0, mode='reflect', multichannel=False)
 
         self.count += 1
@@ -119,8 +120,9 @@ if __name__ == "__main__":
     # n = 30
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-4, betas=(0.9, 0.999))
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
+    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    # optimizer = torch.optim.SGD(TrainNet.network.parameters(), lr=0.0001, momentum=0.9)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
     TrainNet.set_optimizer(optimizer)
 
     transformed_dataset = ReconDataset('/home/liang/Desktop/imagenet/val_data')
@@ -190,10 +192,14 @@ if __name__ == "__main__":
                  sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
                  w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
 
+            # images = np.stack(
+            #     [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255, out_show_v / out_show_v.max() * 255,
+            #      sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255])
+
             if not win:
-                win = vis.images(images, padding=5, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
+                win = vis.images(images, padding=5, nrow=3, opts=dict(title='Without Sparse'))
             else:
-                vis.images(images, padding=5, win=win, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
+                vis.images(images, padding=5, win=win, nrow=3, opts=dict(title='Without Sparse'))
 
         # if epoch%50 == 0:
         #     TrainNet.save_network()

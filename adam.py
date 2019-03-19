@@ -1,6 +1,6 @@
 import math
 import torch
-from .optimizer import Optimizer
+from torch.optim.optimizer import Optimizer
 
 
 class Adam(Optimizer):
@@ -61,7 +61,9 @@ class Adam(Optimizer):
             for p in group['params']:
                 if p.grad is None:
                     continue
-                grad = p.grad.data
+                grad = p.grad.data.to_dense()
+                p.data = p.data.to_dense()
+
                 if grad.is_sparse:
                     raise RuntimeError('Adam does not support sparse gradients, please consider SparseAdam instead')
                 amsgrad = group['amsgrad']
@@ -105,19 +107,8 @@ class Adam(Optimizer):
                 step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
                 p.data.addcdiv_(-step_size, exp_avg, denom)
-                ############################## Liang add here ##############################
 
-                show_weight = p.data
-                weight_min = show_weight.min()
-                weight_dis = show_weight.max() - weight_min
-                show_weight = show_weight - weight_min
-
-                if state['step'] % 50 == 0:
-                    m = torch.nn.Threshold(weight_dis * 0.1, 0)
-                    p.data = (m(show_weight) + weight_min).to('cuda').requires_grad_(True)
-                    # p.data = torch.zeros(show_weight.shape).to('cuda').requires_grad_(True)
-                # print(p.data)
-
+                p.data = p.data.to_sparse().requires_grad_(True)
 
 
         return loss
