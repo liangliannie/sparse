@@ -51,75 +51,73 @@ class SparseAdam(Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
-                print(grad)
                 if not grad.is_sparse:
                     raise RuntimeError('SparseAdam does not support dense gradients, please consider Adam instead')
 
-                    state = self.state[p]
-                    # print(self.state, state)
-                    # State initialization
-                    if len(state) == 0:
-                        state['step'] = 0
-                        # print(p.data.size())
-                        # Exponential moving average of gradient values
-                        state['exp_avg'] = torch.zeros_like(p.data.to_dense())
-                        # Exponential moving average of squared gradient values
-                        state['exp_avg_sq'] = torch.zeros_like(p.data.to_dense())
+                state = self.state[p]
+                # State initialization
+                if len(state) == 0:
+                    state['step'] = 0
+                    # print(p.data.size())
+                    # Exponential moving average of gradient values
+                    state['exp_avg'] = torch.zeros_like(p.data.to_dense())
+                    # Exponential moving average of squared gradient values
+                    state['exp_avg_sq'] = torch.zeros_like(p.data.to_dense())
 
-                    state['step'] += 1
+                state['step'] += 1
 
-                    grad = grad.coalesce()  # the update is non-linear so indices must be unique
-                    grad_indices = grad._indices()
-                    grad_values = grad._values()
-                    size = grad.size()
+                grad = grad.coalesce()  # the update is non-linear so indices must be unique
+                grad_indices = grad._indices()
+                grad_values = grad._values()
+                size = grad.size()
 
-                    def make_sparse(values):
-                        constructor = grad.new
-                        if grad_indices.dim() == 0 or values.dim() == 0:
-                            return constructor().resize_as_(grad)
-                        return constructor(grad_indices, values, size)
+                def make_sparse(values):
+                    constructor = grad.new
+                    if grad_indices.dim() == 0 or values.dim() == 0:
+                        return constructor().resize_as_(grad)
+                    return constructor(grad_indices, values, size)
 
 
-                    exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
 
-                    # print(exp_avg, exp_avg_sq)
-                    beta1, beta2 = group['betas']
+                # print(exp_avg, exp_avg_sq)
+                beta1, beta2 = group['betas']
 
-                    # Decay the first and second moment running average coefficient
-                    #      old <- b * old + (1 - b) * new
-                    # <==> old += (1 - b) * (new - old)
+                # Decay the first and second moment running average coefficient
+                #      old <- b * old + (1 - b) * new
+                # <==> old += (1 - b) * (new - old)
 
-                    old_exp_avg_values = exp_avg.sparse_mask(grad)._values()
-                    exp_avg_update_values = grad_values.sub_(old_exp_avg_values).mul_(1 - beta1)
-                    exp_avg.add_(make_sparse(exp_avg_update_values))
+                old_exp_avg_values = exp_avg.sparse_mask(grad)._values()
+                exp_avg_update_values = grad_values.sub_(old_exp_avg_values).mul_(1 - beta1)
+                exp_avg.add_(make_sparse(exp_avg_update_values))
 
-                    old_exp_avg_sq_values = exp_avg_sq.sparse_mask(grad)._values()
-                    exp_avg_sq_update_values = grad_values.pow(2).sub_(old_exp_avg_sq_values).mul_(1 - beta2)
-                    exp_avg_sq.add_(make_sparse(exp_avg_sq_update_values))
+                old_exp_avg_sq_values = exp_avg_sq.sparse_mask(grad)._values()
+                exp_avg_sq_update_values = grad_values.pow(2).sub_(old_exp_avg_sq_values).mul_(1 - beta2)
+                exp_avg_sq.add_(make_sparse(exp_avg_sq_update_values))
 
-                    # Dense addition again is intended, avoiding another sparse_mask
-                    # print(exp_avg_update_values, exp_avg_sq_update_values)
-                    numer = exp_avg_update_values.add_(old_exp_avg_values)
-                    exp_avg_sq_update_values.add_(old_exp_avg_sq_values)
-                    denom = exp_avg_sq_update_values.sqrt_().add_(group['eps'])
-                    del exp_avg_update_values, exp_avg_sq_update_values
+                # Dense addition again is intended, avoiding another sparse_mask
+                # print(exp_avg_update_values, exp_avg_sq_update_values)
+                numer = exp_avg_update_values.add_(old_exp_avg_values)
+                exp_avg_sq_update_values.add_(old_exp_avg_sq_values)
+                denom = exp_avg_sq_update_values.sqrt_().add_(group['eps'])
+                del exp_avg_update_values, exp_avg_sq_update_values
 
-                    bias_correction1 = 1 - beta1 ** state['step']
-                    bias_correction2 = 1 - beta2 ** state['step']
-                    step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
+                bias_correction1 = 1 - beta1 ** state['step']
+                bias_correction2 = 1 - beta2 ** state['step']
+                step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
-                    print(numer, denom)
-                    p.data.add_(make_sparse(-step_size * numer.div_(denom)))
-                    p.data = p.data.coalesce()
+                # print(numer, denom)
+                p.data.add_(make_sparse(-step_size * numer.div_(denom)))
+                p.data = p.data.coalesce()
 
-                    if state['step'] % 200 == 0:
-                        weight = p.data
-                        print('Before:', p.data._nnz())
-                        dense_weight = weight.to_dense()
-                        mask = torch.lt(abs(dense_weight), 0.01)
-                        dense_weight[mask] = 0
-                        p.data = dense_weight.to_sparse().to('cuda').requires_grad_(True)
-                        print('After:', p.data._nnz())
+                if state['step'] % 200 == 0:
+                    weight = p.data
+                    print('Before:', p.data._nnz())
+                    dense_weight = weight.to_dense()
+                    mask = torch.lt(abs(dense_weight), 0.01)
+                    dense_weight[mask] = 0
+                    p.data = dense_weight.to_sparse().to('cuda').requires_grad_(True)
+                    print('After:', p.data._nnz())
 
 
         return loss

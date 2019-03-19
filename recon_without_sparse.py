@@ -33,7 +33,7 @@ class Net(torch.nn.Module):
 
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        x = self.fc(x)
+        x = torch.sigmoid(self.fc(x))
 
         return x.reshape(size, w, l)
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     # n = 30
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=5e-4, betas=(0.9, 0.999))
     # optimizer = torch.optim.SGD(TrainNet.network.parameters(), lr=0.0001, momentum=0.9)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
     TrainNet.set_optimizer(optimizer)

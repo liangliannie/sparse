@@ -2,12 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="581dafc9-fd53-41f4-8773-ae597426bf30" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/adam.py" beforeDir="false" afterPath="$PROJECT_DIR$/adam.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example.py" beforeDir="false" afterPath="$PROJECT_DIR$/example.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/recon_with_sparse.py" beforeDir="false" afterPath="$PROJECT_DIR$/recon_with_sparse.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/recon_without_sparse.py" beforeDir="false" afterPath="$PROJECT_DIR$/recon_without_sparse.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sparse_adam.py" beforeDir="false" afterPath="$PROJECT_DIR$/sparse_adam.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -32,8 +30,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/recon_without_sparse.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="495">
-              <caret line="192" column="62" lean-forward="true" selection-start-line="192" selection-start-column="62" selection-end-line="192" selection-end-column="62" />
+            <state relative-caret-position="225">
+              <caret line="36" lean-forward="true" selection-start-line="36" selection-end-line="36" />
               <folding>
                 <element signature="e#0#47#0" expanded="true" />
               </folding>
@@ -53,11 +51,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/recon_with_sparse.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="135">
-              <caret line="36" lean-forward="true" selection-start-line="36" selection-end-line="36" />
+            <state relative-caret-position="285">
+              <caret line="121" lean-forward="true" selection-start-line="121" selection-end-line="121" />
               <folding>
                 <element signature="e#0#47#0" expanded="true" />
               </folding>
@@ -65,11 +63,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sparse_adam.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="185">
-              <caret line="99" column="84" lean-forward="true" selection-start-line="99" selection-start-column="84" selection-end-line="99" selection-end-column="84" />
+            <state relative-caret-position="305">
+              <caret line="110" column="31" selection-start-line="110" selection-start-column="27" selection-end-line="110" selection-end-column="31" />
               <folding>
                 <element signature="e#0#11#0" expanded="true" />
               </folding>
@@ -124,8 +122,8 @@
         <option value="$USER_HOME$/.local/lib/python3.6/site-packages/torch/optim/adam.py" />
         <option value="$PROJECT_DIR$/example.py" />
         <option value="$PROJECT_DIR$/test.py" />
-        <option value="$PROJECT_DIR$/recon_without_sparse.py" />
         <option value="$PROJECT_DIR$/adam.py" />
+        <option value="$PROJECT_DIR$/recon_without_sparse.py" />
         <option value="$PROJECT_DIR$/sparse_adam.py" />
         <option value="$PROJECT_DIR$/recon_with_sparse.py" />
       </list>
@@ -302,8 +300,8 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.recon_with_sparse" />
-        <item itemvalue="Python.sparse_adam" />
         <item itemvalue="Python.recon_without_sparse" />
+        <item itemvalue="Python.sparse_adam" />
         <item itemvalue="Python.test" />
         <item itemvalue="Python.adam" />
       </list>
@@ -437,16 +435,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/recon_without_sparse.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="495">
-          <caret line="192" column="62" lean-forward="true" selection-start-line="192" selection-start-column="62" selection-end-line="192" selection-end-column="62" />
-          <folding>
-            <element signature="e#0#47#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/example.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="435">
@@ -474,9 +462,9 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/recon_with_sparse.py">
+    <entry file="file://$PROJECT_DIR$/recon_without_sparse.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="135">
+        <state relative-caret-position="225">
           <caret line="36" lean-forward="true" selection-start-line="36" selection-end-line="36" />
           <folding>
             <element signature="e#0#47#0" expanded="true" />
@@ -486,10 +474,20 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/sparse_adam.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="185">
-          <caret line="99" column="84" lean-forward="true" selection-start-line="99" selection-start-column="84" selection-end-line="99" selection-end-column="84" />
+        <state relative-caret-position="305">
+          <caret line="110" column="31" selection-start-line="110" selection-start-column="27" selection-end-line="110" selection-end-column="31" />
           <folding>
             <element signature="e#0#11#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/recon_with_sparse.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="285">
+          <caret line="121" lean-forward="true" selection-start-line="121" selection-end-line="121" />
+          <folding>
+            <element signature="e#0#47#0" expanded="true" />
           </folding>
         </state>
       </provider>

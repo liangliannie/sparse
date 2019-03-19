@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     TrainNet = RepairNet((w, l), (w, l))
     # optimizer = adam.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
-    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
+    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-4, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
     TrainNet.set_optimizer(optimizer)
 
