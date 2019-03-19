@@ -47,7 +47,7 @@ class SparseAdam(Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            for i, p in enumerate(group['params']):
+            for p in group['params']:
                 if p.grad is None:
                     continue
                 grad = p.grad.data
@@ -64,6 +64,7 @@ class SparseAdam(Optimizer):
                     # Exponential moving average of squared gradient values
                     state['exp_avg_sq'] = torch.zeros_like(p.data)
 
+                print('nnz####### ', p.data._nnz())
                 state['step'] += 1
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 beta1, beta2 = group['betas']
@@ -73,11 +74,10 @@ class SparseAdam(Optimizer):
 
                 # Decay the first and second moment running average coefficient
                 exp_avg.mul_(beta1).add_(1-beta1, grad)
-                exp_avg_sq.mul_(beta2).add_(1-beta2, grad.mul(grad))
-
+                exp_avg_sq.mul_(beta2).add_(1-beta2, grad.mul_(grad))
 
                 numer = exp_avg.to_dense()
-                denom = exp_avg_sq.to_dense().sqrt().add(group['eps'])
+                denom = exp_avg_sq.to_dense().sqrt().add_(group['eps'])
 
                 bias_correction1 = 1 - beta1 ** state['step']
                 bias_correction2 = 1 - beta2 ** state['step']
@@ -85,11 +85,8 @@ class SparseAdam(Optimizer):
 
                 p.data.add_((-step_size * numer.div_(denom)).sparse_mask(grad))
                 del numer, denom
-                # p.data.add_(-group['lr']*grad)
+
                 p.data = p.data.coalesce()
-
-
-
 
                 # if state['step'] % 200 == 0:
                 #     weight = p.data

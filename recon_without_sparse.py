@@ -35,7 +35,7 @@ class Net(torch.nn.Module):
 
     def forward(self, x, size):
         x = x.reshape(size, -1)
-        x= self.fc(x)
+        x = self.fc(x)
         # x = torch.sigmoid(self.fc(x))
 
         return x.reshape(size, w, l)

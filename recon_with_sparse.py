@@ -31,15 +31,20 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.shape1 = shape1
         self.shape2 = shape2
-        weight = init.kaiming_uniform_(torch.Tensor(wl*wl, wl*wl), a=math.sqrt(5))
-        self.weight = torch.nn.Parameter(weight.to_sparse())
+        # weight = torch.Tensor(wl*wl, wl*wl)
+        weight = torch.Tensor(wl*wl, wl*wl)
+        init.kaiming_uniform_(weight, a=math.sqrt(5))
+        self.weight = Parameter(weight.to_sparse())
         # print(self.weight)
 
     def forward(self, x, size):
-
         x = x.reshape(size, -1)
+        # with torch.no_grad():
+        #     a_dense = torch.tensor(self.weight.to_dense()).requires_grad_()
+        #     output = x.matmul(a_dense.t()).t()
         x = torch.sparse.mm(self.weight, x.t())
-
+        # with torch.no_grad():
+        #     print(output-x)
         return x.reshape(size, w, l)
 
 
@@ -121,8 +126,8 @@ if __name__ == "__main__":
     win = None
 
     TrainNet = RepairNet((w, l), (w, l))
-    # optimizer = adam.Adam(TrainNet.network.parameters(), lr=1e-3, betas=(0.9, 0.999))
-    optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-3, betas=(0.9, 0.999))
+    optimizer = adam.Adam(TrainNet.network.parameters(), lr=5e-4, betas=(0.9, 0.999))
+    # optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-5, betas=(0.9, 0.999))
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
