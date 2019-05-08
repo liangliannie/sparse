@@ -21,54 +21,75 @@ import pandas as pd
 from skimage import io, transform
 import matplotlib.pyplot as plt
 from torchvision import transforms, utils
+from synapses import SETLayer
+
 batch_size = 15
 wl = 16
 w, l, n = wl, wl, 30
 
-class Net(torch.nn.Module):
-
-    def __init__(self, shape1, shape2):
-        super(Net, self).__init__()
-        self.shape1 = shape1
-        self.shape2 = shape2
-        # weight = torch.Tensor(wl*wl, wl*wl)
-        weight = torch.Tensor(wl*wl, wl*wl)
-        init.kaiming_uniform_(weight, a=math.sqrt(5))
-        self.weight = Parameter(weight.to_sparse())
-        # print(self.weight)
-
-    def forward(self, x, size):
-        x = x.reshape(size, -1)
-        # with torch.no_grad():
-        #     a_dense = torch.tensor(self.weight.to_dense()).requires_grad_()
-        #     output = x.matmul(a_dense.t()).t()
-        x = torch.sparse.mm(self.weight, x.t())
-        # with torch.no_grad():
-        #     print(output-x)
-        return x.reshape(size, w, l)
+# class Net(torch.nn.Module):
+#
+#     def __init__(self, shape1, shape2):
+#         super(Net, self).__init__()
+#         self.shape1 = shape1
+#         self.shape2 = shape2
+#         # weight = torch.Tensor(wl*wl, wl*wl)
+#         # weight = torch.Tensor(wl*wl, wl*wl)
+#         # init.kaiming_uniform_(weight, a=math.sqrt(5))
+#         weight = torch.randn(wl*wl, wl*wl)
+#         self.weight = Parameter(weight.to_sparse().requires_grad_(True))
+#         # print(self.weight)
+#
+#     def forward(self, x, size):
+#         x = x.reshape(size, -1)
+#         # with torch.no_grad():
+#         #     a_dense = torch.tensor(self.weight.to_dense()).requires_grad_()
+#         #     output = x.matmul(a_dense.t()).t()
+#         x = torch.sparse.mm(self.weight, x.t()).t()
+#         # print(x.shape)
+#         # x = x.mul(self.weight)
+#         # with torch.no_grad():
+#         #     print(output-x)
+#         return x.reshape(size, w, l)
 
 
 
 class RepairNet():
 
     def __init__(self, shape1, shape2):
-        self.network = Net(shape1, shape2)
-        self.network.cuda()
+        # self.network = Net(shape1, shape2)
+        self.network = SETLayer(wl*wl, wl*wl)
+        # self.network.cuda()
         self.loss_func = torch.nn.L1Loss(reduction='mean')
         self.mssim_loss = MSSSIM(window_size=11, size_average=True)
         self.loss_func_MSE = torch.nn.MSELoss()
         self.model_num = 0
 
+    def zero_connections(self):
+        """Sets connections to zero for inferences."""
+
+        self.network.zero_connections()
+
+    def evolve_connections(self):
+        """Evolves connections."""
+
+        self.network.evolve_connections()
+
+
     def set_optimizer(self, optimizer):
+        self.network.optimizer = optimizer
         self.optimizer = optimizer
 
     def train_batch(self, input_img, target_img, size):
-        output = self.network.forward(input_img, size)
+        # print(input_img.shape)
+        inp = input_img.reshape(size, -1)
+        # output = self.network.forward(input_img, size)
+        output =self.network(inp).reshape(input_img.shape)
+
         loss = self.loss_func(output, target_img) #- self.mssim_loss.forward(output.reshape(batch_size,1,w,l), target_img.reshape(batch_size,1,w,l))
 
         self.optimizer.zero_grad()
         loss.backward()
-        # weight = self.optimizer.param_groups[0]['params']
         self.optimizer.step()
         return loss.detach(), output
 
@@ -126,8 +147,11 @@ if __name__ == "__main__":
     win = None
 
     TrainNet = RepairNet((w, l), (w, l))
-    optimizer = adam.Adam(TrainNet.network.parameters(), lr=5e-4, betas=(0.9, 0.999))
+    # optimizer = adam.Adam(TrainNet.network.parameters(), lr=5e-3, betas=(0.9, 0.999))
     # optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-5, betas=(0.9, 0.999))
+    optimizer = torch.optim.SGD(TrainNet.network.parameters(), lr=0.01, momentum=0.9)
+    # optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-2, betas=(0.9, 0.999))
+
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
 
@@ -139,15 +163,20 @@ if __name__ == "__main__":
 
     for epoch in range(500000):
 
+        if epoch >=5:
+            TrainNet.evolve_connections()
         if epoch % 5 == 0:
             scheduler.step()
+
             for param_group in optimizer.param_groups:
                 print("Current learning rate: {}\n".format(param_group['lr']))
 
         print("Starting epoch: " + str(epoch) + '\n')
         for i_batch, sample_batched in enumerate(dataloader):
             sino, img = (sample_batched['sino']), (sample_batched['img'])
-            sino, img = sino.type(torch.float32).cuda(), img.type(torch.float32).cuda()
+            # sino, img = sino.type(torch.float32).cuda(), img.type(torch.float32).cuda()
+            sino, img = sino.type(torch.float32), img.type(torch.float32)
+
             loss, out = TrainNet.train_batch(sino, img, batch_size)
             print('loss:', loss.item())
 
@@ -155,6 +184,7 @@ if __name__ == "__main__":
             for name, param in TrainNet.network.named_parameters():
                 if 'weight' in name:
                     weight = param.data
+                    print(weight.shape)
         #     if epoch % 50 == 51:
         #         print('Revise the zeros in weight')
         #         # TODO change the sparse to make it visible for one pixel
@@ -175,8 +205,15 @@ if __name__ == "__main__":
             tesgram, testimage = torch.tensor(tesgram), torch.tensor(testimage)
             tesgram = tesgram / tesgram.max()
             testimage = testimage / testimage.max()
-            tesgram, testimage = tesgram.type(torch.float32).cuda(), testimage.type(torch.float32).cuda()
-            output = TrainNet.network.forward(tesgram, 1)
+            # tesgram, testimage = tesgram.type(torch.float32).cuda(), testimage.type(torch.float32).cuda()
+
+            tesgram, testimage = tesgram.type(torch.float32), testimage.type(torch.float32)
+
+            inp = tesgram.reshape(1, -1)
+            # output = self.network.forward(input_img, size)
+            output = TrainNet.network(inp).reshape(tesgram.shape)
+
+            # output = TrainNet.network.forward(tesgram, 1)
 
             sino_show_v = sino.reshape(batch_size, w, l).detach().cpu().numpy()[0:1]
             img_show_v = img.reshape(batch_size, w, l).detach().cpu().numpy()[0:1]
@@ -186,20 +223,34 @@ if __name__ == "__main__":
             img_show = testimage.reshape(1, w, l).detach().cpu().numpy()[0:1]
             out_show = output.reshape(1, w, l).detach().cpu().numpy()[0:1]
 
-            w_show1 = weight.to_dense()[n].reshape(1, w, l).detach().cpu().numpy()
-            w_show2 = weight.to_dense()[n+20].reshape(1, w, l).detach().cpu().numpy()
-            w_show3 = weight.to_dense()[n+10].reshape(1, w, l).detach().cpu().numpy()
+            vec = TrainNet.network.connections[:, 0]
+            # vec = np.array(vec)
+            _, counts = np.unique(vec, return_counts=True)
+            # print(vec.shape, counts.shape)
+            w_show = counts.reshape(1, wl, wl)
+            # w_show1 = weight.to_dense()[n].reshape(1, w, l).detach().cpu().numpy()
+            # w_show2 = weight.to_dense()[n+20].reshape(1, w, l).detach().cpu().numpy()
+            # w_show3 = weight.to_dense()[n+10].reshape(1, w, l).detach().cpu().numpy()
+            # w_show1 = weight[n].reshape(1, w, l).detach().cpu().numpy()
+            # w_show2 = weight[n + 20].reshape(1, w, l).detach().cpu().numpy()
+            # w_show3 = weight[n + 10].reshape(1, w, l).detach().cpu().numpy()
+            # w_show1 = w_show1 - w_show1.min()
+            # w_show2 = w_show2 - w_show2.min()
+            # w_show3 = w_show3 - w_show3.min()
+            w_show = w_show - w_show.min()
 
-            w_show1 = w_show1 - w_show1.min()
-            w_show2 = w_show2 - w_show2.min()
-            w_show3 = w_show3 - w_show3.min()
-
+            # images = np.stack(
+            #     [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255, out_show_v / out_show_v.max() * 255,
+            #      sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
+            #      w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
             images = np.stack(
                 [sino_show_v / sino_show_v.max() * 255, img_show_v / img_show_v.max() * 255, out_show_v / out_show_v.max() * 255,
-                 sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,
-                 w_show1 / w_show1.max() * 255, w_show2 / w_show2.max() * 255, w_show3 / w_show3.max() * 255])
+                 sino_show / sino_show.max() * 255, img_show / img_show.max() * 255, out_show / out_show.max() * 255,w_show / w_show.max() * 255
+                 ])
 
             if not win:
                 win = vis.images(images, padding=5, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
             else:
                 vis.images(images, padding=5, win=win, nrow=3, opts=dict(title='Sino, Img, Out, Weight'))
+
+        TrainNet.zero_connections()

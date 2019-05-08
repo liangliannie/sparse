@@ -24,7 +24,7 @@ from torchvision import transforms, utils
 from synapses import SETLayer
 
 batch_size = 15
-wl = 32
+wl = 16
 w, l, n = wl, wl, 30
 
 # class Net(torch.nn.Module):
@@ -77,13 +77,14 @@ class RepairNet():
 
 
     def set_optimizer(self, optimizer):
+        self.network.optimizer = optimizer
         self.optimizer = optimizer
 
     def train_batch(self, input_img, target_img, size):
         # print(input_img.shape)
         inp = input_img.reshape(size, -1)
         # output = self.network.forward(input_img, size)
-        output = self.network(inp).reshape(input_img.shape)
+        output =self.network(inp).reshape(input_img.shape)
 
         loss = self.loss_func(output, target_img) #- self.mssim_loss.forward(output.reshape(batch_size,1,w,l), target_img.reshape(batch_size,1,w,l))
 
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     # optimizer = adam.Adam(TrainNet.network.parameters(), lr=5e-3, betas=(0.9, 0.999))
     # optimizer = sparse_adam.SparseAdam(TrainNet.network.parameters(), lr=4e-5, betas=(0.9, 0.999))
     # optimizer = torch.optim.SGD(TrainNet.network.parameters(), lr=0.01, momentum=0.9)
-    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=5e-3, betas=(0.9, 0.999))
+    optimizer = torch.optim.Adam(TrainNet.network.parameters(), lr=1e-2, betas=(0.9, 0.999))
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.985)
     TrainNet.set_optimizer(optimizer)
@@ -162,9 +163,10 @@ if __name__ == "__main__":
 
     for epoch in range(500000):
 
+        if epoch >=5:
+            TrainNet.evolve_connections()
         if epoch % 5 == 0:
             scheduler.step()
-            TrainNet.evolve_connections()
             for param_group in optimizer.param_groups:
                 print("Current learning rate: {}\n".format(param_group['lr']))
 
